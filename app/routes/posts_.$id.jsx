@@ -112,18 +112,24 @@ export default function Post() {
             </div>
 
             <h1 className="font-semibold text-4xl lg:text-5xl mt-16">{post[0]?.title}</h1>
-            <div className="mt-8 rounded-md bg-[#b59ec6] p-6 text-black">
+            <div className="mt-8  text-black">
                 {post[0]?.content}
             </div>
-            <ul className="mt-4 space-y-2">
-                {comments.map((comment) => (
-                    <Comment
-                        key={comment.id}
-                        content={comment.content}
-                        commentId={comment.id}
-                    />
-                ))}
-            </ul>
+            {comments.length === 0
+                ? <p className="text-gray-300 mt-4">No comments yet</p>
+                : <div className="mt-4">
+                    <h2>Comments</h2>
+                    <ul className="mt-2 space-y-2">
+                        {comments.map((comment) => (
+                            <Comment
+                                key={comment.id}
+                                content={comment.content}
+                                commentId={comment.id}
+                            />
+                        ))}
+                    </ul>
+                </div>
+            }
             <Form method="post" className="mt-8">
                 <div className="flex gap-2">
                     <Input
