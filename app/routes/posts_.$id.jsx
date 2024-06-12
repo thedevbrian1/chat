@@ -90,14 +90,22 @@ export default function Post() {
     return (
         <main className="pt-32 px-6 lg:px-0 lg:max-w-2xl mx-auto text-white">
             <div className="flex justify-between">
-                <Link to="/posts" className="flex gap-2 items-center hover:underline">
+                <Link
+                    to="/posts"
+                    prefetch="intent"
+                    className="flex gap-2 items-center hover:underline"
+                >
                     <ArrowLeftIcon /> All posts
                 </Link>
                 <div className="flex gap-2">
                     <Button type="submit" variant="destructive" className="flex gap-2 items-center">
                         <TrashIcon />  Delete
                     </Button>
-                    <Link to="edit" className="bg-brand-brown hover:bg-[#ecba65] transition-colors ease-in-out duration-300 px-4 py-2 rounded-md flex gap-2 items-center text-black">
+                    <Link
+                        to="edit"
+                        prefetch="intent"
+                        className="bg-brand-brown hover:bg-[#ecba65] transition-colors ease-in-out duration-300 px-4 py-2 rounded-md flex gap-2 items-center text-black"
+                    >
                         <Pencil1Icon />  Edit
                     </Link>
                 </div>

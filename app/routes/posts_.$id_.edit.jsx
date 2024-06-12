@@ -73,7 +73,11 @@ export default function EditPost() {
 
     return (
         <main className="pt-32 px-6 lg:px-0 lg:max-w-lg mx-auto text-white">
-            <Link to={`/posts/${postId}`} className="flex gap-2 items-center hover:underline">
+            <Link
+                to={`/posts/${postId}`}
+                prefetch="intent"
+                className="flex gap-2 items-center hover:underline"
+            >
                 <ArrowLeftIcon /> Back to post
             </Link>
             <h1 className="font-semibold text-4xl lg:text-5xl mt-16">Edit Post</h1>

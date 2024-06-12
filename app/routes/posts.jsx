@@ -21,6 +21,7 @@ export default function Posts() {
                     <h1 className="font-bold text-4xl lg:text-5xl">Posts</h1>
                     <Link
                         to="/posts/new"
+                        prefetch="intent"
                         className="bg-brand-brown hover:bg-[#ecba65] transition-colors ease-in-out duration-300 px-4 py-2 rounded-md flex items-center gap-2">
                         <PlusIcon /> New Post
                     </Link>
@@ -36,7 +37,12 @@ export default function Posts() {
                     </div>
                     : <div className="mt-8 flex flex-col gap-4 text-black">
                         {posts.map((post) => (
-                            <Link to={`/posts/${post.id}`} key={post.id} className="rounded-md bg-[#b59ec6] p-6 hover:underline">
+                            <Link
+                                key={post.id}
+                                to={`/posts/${post.id}`}
+                                prefetch="intent"
+                                className="rounded-md bg-[#b59ec6] p-6 hover:underline"
+                            >
                                 <p>{post.title}</p>
                             </Link>
                         ))}
