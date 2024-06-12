@@ -65,8 +65,6 @@ export async function action({ request, params }) {
 export default function EditPost() {
     let { post } = useLoaderData();
 
-    console.log({ post });
-
     let navigation = useNavigation();
     let isSubmitting = navigation.state === 'submitting';
 

@@ -1,11 +1,11 @@
 import { ArrowLeftIcon, Pencil1Icon, TrashIcon } from "@radix-ui/react-icons";
-import { Form, Link, isRouteErrorResponse, json, useLoaderData, useNavigation, useRouteError } from "@remix-run/react";
+import { Form, Link, isRouteErrorResponse, json, useFetcher, useLoaderData, useNavigation, useRouteError } from "@remix-run/react";
 import { getSession, sessionStorage, setSuccessMessage } from "~/.server/session";
 import { getUser } from "~/.server/supabase";
 import { ThreeDots } from "~/components/Icon";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { createComment, getPostComments } from "~/models/comment";
+import { createComment, deleteComment, getPostComments } from "~/models/comment";
 import { getPostById } from "~/models/post";
 
 export async function loader({ request, params }) {
@@ -31,31 +31,54 @@ export async function loader({ request, params }) {
 }
 
 export async function action({ request, params }) {
+    let postId = params.id;
+
     let session = await getSession(request);
 
     let formData = await request.formData();
     let comment = formData.get('comment');
+    let commentId = formData.get('commentId');
+    let action = formData.get('_action');
 
-    let postId = params.id;
 
-    let { user, headers: userHeaders } = await getUser(request);
+    switch (action) {
+        case 'createComment': {
+            let { user, headers: userHeaders } = await getUser(request);
 
-    let userId = user.id;
+            let userId = user.id;
 
-    let { status, headers: commentHeaders } = await createComment(request, comment, userId, postId);
+            let { status, headers: commentHeaders } = await createComment(request, comment, userId, postId);
 
-    if (status === 201) {
-        setSuccessMessage(session, "Created successfully!");
+            if (status === 201) {
+                setSuccessMessage(session, "Created successfully!");
+            }
+            let allHeaders = {
+                ...Object.fromEntries(userHeaders.entries()),
+                ...Object.fromEntries(commentHeaders.entries()),
+                "Set-Cookie": await sessionStorage.commitSession(session)
+            }
+            return json({ ok: true }, {
+                headers: allHeaders
+            });
+        }
+        case 'deleteComment': {
+            let { status, headers: deleteHeaders } = await deleteComment(request, commentId);
+
+            if (status === 204) {
+                setSuccessMessage(session, 'Deleted successfully!');
+            }
+
+            let allHeaders = {
+                ...Object.fromEntries(deleteHeaders.entries()),
+                "Set-Cookie": await sessionStorage.commitSession(session)
+            };
+
+            return json({ ok: true }, {
+                headers: allHeaders
+            });
+        }
     }
 
-    let allHeaders = {
-        ...Object.fromEntries(userHeaders.entries()),
-        ...Object.fromEntries(commentHeaders.entries()),
-        "Set-Cookie": await sessionStorage.commitSession(session)
-    }
-    return json({ ok: true }, {
-        headers: allHeaders
-    });
 }
 
 export default function Post() {
@@ -86,9 +109,11 @@ export default function Post() {
             </div>
             <ul className="mt-4 space-y-2">
                 {comments.map((comment) => (
-                    <li key={comment.id}>
-                        <p>{comment.content}</p>
-                    </li>
+                    <Comment
+                        key={comment.id}
+                        content={comment.content}
+                        commentId={comment.id}
+                    />
                 ))}
             </ul>
             <Form method="post" className="mt-8">
@@ -99,12 +124,39 @@ export default function Post() {
                         placeholder="This is such a good post"
                         className="placeholder:text-gray-300 focus-visible:ring-4 focus-visible:ring-brand-brown shadow-md"
                     />
-                    <Button type="submit" className="bg-purple-600 shadow focus-visible:ring-4 focus-visible:ring-brand-brown">
+                    <Button
+                        type="submit"
+                        name="_action"
+                        value="createComment"
+                        className="bg-purple-600 shadow focus-visible:ring-4 focus-visible:ring-brand-brown"
+                    >
                         {isSubmitting ? <span className="w-10"><ThreeDots /></span> : 'Add comment'}
                     </Button>
                 </div>
             </Form>
         </main>
+    );
+}
+
+function Comment({ content, commentId }) {
+    let fetcher = useFetcher();
+    let isDeleting = fetcher.state !== 'idle' && fetcher.formData.get('_action') === 'deleteComment';
+
+    return (
+        <li className={`bg-[#775d8b] ${isDeleting ? 'opacity-50' : ''} p-4 flex justify-between items-center rounded-md`}>
+            {content}
+            <fetcher.Form method="post">
+                <input type="hidden" name="commentId" value={commentId} />
+                <button
+                    type="submit"
+                    name="_action"
+                    value="deleteComment"
+                    className="text-red-500 hover:text-red-600 transition-colors ease-in-out duration-300"
+                >
+                    <TrashIcon />
+                </button>
+            </fetcher.Form>
+        </li>
     );
 }
 

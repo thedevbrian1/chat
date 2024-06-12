@@ -32,3 +32,17 @@ export async function getPostComments(request, postId, userId) {
 
     return { data, headers };
 }
+
+export async function deleteComment(request, commentId) {
+    let { supabase, headers } = createClient(request);
+    let { status, error } = await supabase
+        .from('comments')
+        .delete()
+        .eq('id', Number(commentId));
+
+    if (error) {
+        throw error;
+    }
+
+    return { status, headers };
+}
