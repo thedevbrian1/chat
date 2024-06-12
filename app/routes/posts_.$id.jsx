@@ -1,5 +1,6 @@
 import { ArrowLeftIcon, Pencil1Icon, TrashIcon } from "@radix-ui/react-icons";
 import { Form, Link, isRouteErrorResponse, json, useFetcher, useLoaderData, useNavigation, useRouteError } from "@remix-run/react";
+import { useEffect, useRef } from "react";
 import { getSession, sessionStorage, setSuccessMessage } from "~/.server/session";
 import { getUser } from "~/.server/supabase";
 import { ThreeDots } from "~/components/Icon";
@@ -12,12 +13,15 @@ export async function loader({ request, params }) {
     let postId = params.id;
 
     let { user, headers: userHeaders } = await getUser(request);
-
-    let { data, headers } = await getPostById(request, postId);
-
     let userId = user.id;
 
-    let { data: comments, headers: commentHeaders } = await getPostComments(request, postId, userId);
+    let [
+        { data, headers },
+        { data: comments, headers: commentHeaders }
+    ] = await Promise.all([
+        getPostById(request, postId),
+        getPostComments(request, postId, userId)
+    ]);
 
     let allHeaders = {
         ...Object.fromEntries(headers.entries()),
@@ -25,7 +29,7 @@ export async function loader({ request, params }) {
         ...Object.fromEntries(commentHeaders.entries())
     };
 
-    return json({ post: data, comments }, {
+    return json({ post: data, comments, userId }, {
         headers: allHeaders
     });
 }
@@ -82,13 +86,23 @@ export async function action({ request, params }) {
 }
 
 export default function Post() {
-    let { post, comments } = useLoaderData();
+    let { post, comments, userId } = useLoaderData();
 
     let navigation = useNavigation();
-    let isSubmitting = navigation.state === 'submitting';
+    let isSubmitting = navigation.state !== 'idle';
+    let optimisticComment = navigation.formData?.get('comment');
 
+    let formRef = useRef(null);
+
+    useEffect(() => {
+        if (isSubmitting) {
+            formRef.current?.reset();
+        }
+    }, [isSubmitting]);
+
+    // TODO: Scroll to the bottom of the comment list after adding a comment
     return (
-        <main className="pt-32 px-6 lg:px-0 lg:max-w-2xl mx-auto text-white">
+        <main className="py-32 px-6 lg:px-0 lg:max-w-2xl mx-auto text-white">
             <div className="flex justify-between">
                 <Link
                     to="/posts"
@@ -97,18 +111,22 @@ export default function Post() {
                 >
                     <ArrowLeftIcon /> All posts
                 </Link>
-                <div className="flex gap-2">
-                    <Button type="submit" variant="destructive" className="flex gap-2 items-center">
-                        <TrashIcon />  Delete
-                    </Button>
-                    <Link
-                        to="edit"
-                        prefetch="intent"
-                        className="bg-brand-brown hover:bg-[#ecba65] transition-colors ease-in-out duration-300 px-4 py-2 rounded-md flex gap-2 items-center text-black"
-                    >
-                        <Pencil1Icon />  Edit
-                    </Link>
-                </div>
+                {userId === post[0].user_id
+                    ? <div className="flex gap-2">
+                        <Button type="submit" variant="destructive" className="flex gap-2 items-center">
+                            <TrashIcon />  Delete
+                        </Button>
+                        <Link
+                            to="edit"
+                            prefetch="intent"
+                            className="bg-brand-brown hover:bg-[#ecba65] transition-colors ease-in-out duration-300 px-4 py-2 rounded-md flex gap-2 items-center text-black"
+                        >
+                            <Pencil1Icon />  Edit
+                        </Link>
+                    </div>
+                    : null
+                }
+
             </div>
 
             <h1 className="font-semibold text-4xl lg:text-5xl mt-16">{post[0]?.title}</h1>
@@ -125,12 +143,20 @@ export default function Post() {
                                 key={comment.id}
                                 content={comment.content}
                                 commentId={comment.id}
+                                id={comment.user_id}
                             />
                         ))}
+                        {isSubmitting
+                            ? <Comment
+                                content={optimisticComment}
+                                isOptimistic={true}
+                            />
+                            : null
+                        }
                     </ul>
                 </div>
             }
-            <Form method="post" className="mt-8">
+            <Form method="post" className="mt-8" ref={formRef}>
                 <div className="flex gap-2">
                     <Input
                         type="text"
@@ -144,7 +170,8 @@ export default function Post() {
                         value="createComment"
                         className="bg-purple-600 shadow focus-visible:ring-4 focus-visible:ring-brand-brown"
                     >
-                        {isSubmitting ? <span className="w-10"><ThreeDots /></span> : 'Add comment'}
+                        {/* {isSubmitting ? <span className="w-10"><ThreeDots /></span> : 'Add comment'} */}
+                        Add comment
                     </Button>
                 </div>
             </Form>
@@ -152,24 +179,36 @@ export default function Post() {
     );
 }
 
-function Comment({ content, commentId }) {
+function Comment({ content, commentId, id, isOptimistic }) {
+    let { userId } = useLoaderData();
+
     let fetcher = useFetcher();
     let isDeleting = fetcher.state !== 'idle' && fetcher.formData.get('_action') === 'deleteComment';
 
     return (
-        <li className={`bg-[#775d8b] ${isDeleting ? 'opacity-50' : ''} p-4 flex justify-between items-center rounded-md`}>
-            {content}
-            <fetcher.Form method="post">
-                <input type="hidden" name="commentId" value={commentId} />
-                <button
-                    type="submit"
-                    name="_action"
-                    value="deleteComment"
-                    className="text-red-500 hover:text-red-600 transition-colors ease-in-out duration-300"
-                >
-                    <TrashIcon />
-                </button>
-            </fetcher.Form>
+        <li
+            hidden={isDeleting}
+            className={`bg-[#775d8b]  rounded-md`}
+        >
+            <div className="p-4 flex justify-between items-center">
+                {content}
+                {userId === id
+                    ? <fetcher.Form method="post">
+                        <input type="hidden" name="commentId" value={commentId} />
+                        <button
+                            disabled={isOptimistic}
+                            type="submit"
+                            name="_action"
+                            value="deleteComment"
+                            className="text-red-500 hover:text-red-600 transition-colors ease-in-out duration-300"
+                        >
+                            <TrashIcon />
+                        </button>
+                    </fetcher.Form>
+                    : null
+                }
+            </div>
+
         </li>
     );
 }

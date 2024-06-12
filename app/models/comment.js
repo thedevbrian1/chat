@@ -19,7 +19,7 @@ export async function createComment(request, content, userId, postId) {
     return { status, headers };
 }
 
-export async function getPostComments(request, postId, userId) {
+export async function getPostComments(request, postId) {
     let { supabase, headers } = createClient(request);
     let { data, error } = await supabase
         .from('comments')
