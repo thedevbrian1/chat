@@ -1,8 +1,9 @@
 import { ArrowLeftIcon, Pencil1Icon, TrashIcon } from "@radix-ui/react-icons";
-import { Form, Link, isRouteErrorResponse, json, useFetcher, useLoaderData, useNavigation, useRouteError } from "@remix-run/react";
+import { Form, Link, isRouteErrorResponse, json, useActionData, useFetcher, useLoaderData, useNavigation, useRouteError } from "@remix-run/react";
 import { useEffect, useRef } from "react";
 import { getSession, sessionStorage, setSuccessMessage } from "~/.server/session";
 import { getUser } from "~/.server/supabase";
+import { badRequest, validateText } from "~/.server/validation";
 import { ThreeDots } from "~/components/Icon";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -41,12 +42,21 @@ export async function action({ request, params }) {
 
     let formData = await request.formData();
     let comment = formData.get('comment');
+    console.log({ comment: comment?.length });
+
     let commentId = formData.get('commentId');
     let action = formData.get('_action');
 
-
     switch (action) {
         case 'createComment': {
+            let fieldErrors = {
+                comment: validateText(comment)
+            };
+
+            if (Object.values(fieldErrors).some(Boolean)) {
+                return badRequest({ fieldErrors });
+            }
+
             let { user, headers: userHeaders } = await getUser(request);
 
             let userId = user.id;
@@ -87,12 +97,15 @@ export async function action({ request, params }) {
 
 export default function Post() {
     let { post, comments, userId } = useLoaderData();
+    let actionData = useActionData();
 
     let navigation = useNavigation();
     let isSubmitting = navigation.state !== 'idle';
     let optimisticComment = navigation.formData?.get('comment');
 
     let formRef = useRef(null);
+
+    let isPostAuthor = userId === post[0].user_id;
 
     useEffect(() => {
         if (isSubmitting) {
@@ -144,9 +157,11 @@ export default function Post() {
                                 content={comment.content}
                                 commentId={comment.id}
                                 id={comment.user_id}
+                                isPostAuthor={isPostAuthor}
                             />
                         ))}
-                        {isSubmitting
+                        {/* Optimistic comment */}
+                        {isSubmitting && navigation.formData?.get('comment').length !== 0
                             ? <Comment
                                 content={optimisticComment}
                                 isOptimistic={true}
@@ -157,29 +172,34 @@ export default function Post() {
                 </div>
             }
             <Form method="post" className="mt-8" ref={formRef}>
-                <div className="flex gap-2">
+                <div className="flex gap-2 bg-[#aa90be] rounded-md  p-2">
                     <Input
                         type="text"
                         name="comment"
                         placeholder="This is such a good post"
-                        className="placeholder:text-gray-300 focus-visible:ring-4 focus-visible:ring-brand-brown shadow-md"
+                        minlength={2}
+                        className={`placeholder:text-gray-300 focus-visible:ring-4 focus-visible:ring-brand-brown shadow-md rounded-md ${actionData?.fieldErrors?.comment ? 'border border-red-500' : ''}`}
                     />
                     <Button
                         type="submit"
                         name="_action"
                         value="createComment"
-                        className="bg-purple-600 shadow focus-visible:ring-4 focus-visible:ring-brand-brown"
+                        className="bg-purple-600 hover:bg-purple-500 transition ease-in-out duration-300 shadow focus-visible:ring-4 focus-visible:ring-brand-brown"
                     >
                         {/* {isSubmitting ? <span className="w-10"><ThreeDots /></span> : 'Add comment'} */}
                         Add comment
                     </Button>
                 </div>
+                {actionData?.fieldErrors?.comment
+                    ? <p className="mt-2 text-red-500 text-sm transition ease-in-out duration-300">{actionData.fieldErrors.comment}</p>
+                    : null
+                }
             </Form>
         </main>
     );
 }
 
-function Comment({ content, commentId, id, isOptimistic }) {
+function Comment({ content, commentId, id, isPostAuthor, isOptimistic }) {
     let { userId } = useLoaderData();
 
     let fetcher = useFetcher();
@@ -192,7 +212,7 @@ function Comment({ content, commentId, id, isOptimistic }) {
         >
             <div className="p-4 flex justify-between items-center">
                 {content}
-                {userId === id
+                {(userId === id || isPostAuthor)
                     ? <fetcher.Form method="post">
                         <input type="hidden" name="commentId" value={commentId} />
                         <button

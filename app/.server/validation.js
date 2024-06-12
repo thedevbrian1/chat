@@ -20,6 +20,12 @@ export function validatePassword(password) {
     }
 }
 
+export function validateText(message) {
+    if (typeof message !== "string" || message.length < 2) {
+        return 'Input is invalid';
+    }
+}
+
 export function badRequest(data) {
     return json(data, { status: 404 });
 }
