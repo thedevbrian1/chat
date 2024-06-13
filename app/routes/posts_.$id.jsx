@@ -1,6 +1,7 @@
 import { ArrowLeftIcon, Pencil1Icon, TrashIcon } from "@radix-ui/react-icons";
-import { Form, Link, isRouteErrorResponse, json, useActionData, useFetcher, useLoaderData, useNavigation, useRouteError } from "@remix-run/react";
+import { Form, Link, isRouteErrorResponse, json, useActionData, useFetcher, useLoaderData, useNavigation, useRevalidator, useRouteError } from "@remix-run/react";
 import { useEffect, useRef } from "react";
+import { useEventSource } from "remix-utils/sse/react";
 import { getSession, sessionStorage, setSuccessMessage } from "~/.server/session";
 import { getUser } from "~/.server/supabase";
 import { badRequest, validateText } from "~/.server/validation";
@@ -9,12 +10,13 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { createComment, deleteComment, getPostComments } from "~/models/comment";
 import { getPostById } from "~/models/post";
+import { emitter } from "~/services/emitter";
 
 export async function loader({ request, params }) {
     let postId = params.id;
 
     let { user, headers: userHeaders } = await getUser(request);
-    let userId = user.id;
+    let userId = user?.id;
 
     let [
         { data, headers },
@@ -65,7 +67,10 @@ export async function action({ request, params }) {
 
             if (status === 201) {
                 setSuccessMessage(session, "Created successfully!");
+                emitter.emit("message", comment);
             }
+
+
             let allHeaders = {
                 ...Object.fromEntries(userHeaders.entries()),
                 ...Object.fromEntries(commentHeaders.entries()),
@@ -80,7 +85,9 @@ export async function action({ request, params }) {
 
             if (status === 204) {
                 setSuccessMessage(session, 'Deleted successfully!');
+                emitter.emit("message", commentId);
             }
+
 
             let allHeaders = {
                 ...Object.fromEntries(deleteHeaders.entries()),
@@ -106,6 +113,16 @@ export default function Post() {
     let formRef = useRef(null);
 
     let isPostAuthor = userId === post[0].user_id;
+
+    let newMessage = useEventSource("/sse", { event: "new-message" });
+
+    console.log({ newMessage });
+
+    let { revalidate } = useRevalidator();
+
+    useEffect(() => {
+        revalidate();
+    }, [newMessage]);
 
     useEffect(() => {
         if (isSubmitting) {
@@ -176,7 +193,8 @@ export default function Post() {
                     <Input
                         type="text"
                         name="comment"
-                        placeholder="This is such a good post"
+                        aria-label="comment"
+                        placeholder="Enter your comment"
                         minlength={2}
                         className={`placeholder:text-gray-300 focus-visible:ring-4 focus-visible:ring-brand-brown shadow-md rounded-md ${actionData?.fieldErrors?.comment ? 'border border-red-500' : ''}`}
                     />
